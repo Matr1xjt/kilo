@@ -1,1 +1,14 @@
+# Compiled object files
+*.o
+
+# Compiled libraries
+*.a
+*.rmeta
+
+# Executables
 kilo
+../bin/kilo
+
+# Build artifacts
+_start.c
+mini_allocator.c

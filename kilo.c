@@ -54,6 +54,70 @@
 #include <fcntl.h>
 #include <signal.h>
 
+/* Workaround: Define termios structures and constants missing from axlibc */
+#undef termios  /* Remove any incomplete forward declaration */
+
+struct termios {
+    unsigned int c_iflag;      /* input mode flags */
+    unsigned int c_oflag;      /* output mode flags */
+    unsigned int c_cflag;      /* control mode flags */
+    unsigned int c_lflag;      /* local mode flags */
+    unsigned char c_line;      /* line discipline */
+    unsigned char c_cc[32];    /* control characters */
+    unsigned int __c_ispeed;   /* input speed */
+    unsigned int __c_ospeed;   /* output speed */
+};
+
+/* termios constants */
+#define BRKINT  0000002
+#define ICRNL   0000400
+#define INPCK   0000020
+#define ISTRIP  0000040
+#define IXON    0002000
+#define OPOST   0000001
+#define CS8     0000060
+#define ECHO    0000010
+#define ICANON  0000002
+#define IEXTEN  0100000
+#define ISIG    0000001
+#define VMIN    6
+#define VTIME   5
+#define TCSAFLUSH 2
+
+/* Stub implementations for missing functions */
+static inline int tcgetattr(int fd, struct termios *termios_p) {
+    (void)fd; (void)termios_p;
+    return 0;  /* Pretend success */
+}
+
+static inline int tcsetattr(int fd, int optional_actions, const struct termios *termios_p) {
+    (void)fd; (void)optional_actions; (void)termios_p;
+    return 0;  /* Pretend success */
+}
+
+/* Stub for atexit */
+static inline int atexit(void (*function)(void)) {
+    (void)function;
+    return 0;  /* Pretend success */
+}
+
+/* Work around broken memcpy and memset: use our own implementations */
+static inline void *my_memcpy(void *dest, const void *src, size_t n) {
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    while (n--) *d++ = *s++;
+    return dest;
+}
+#define memcpy my_memcpy
+
+static inline void *my_memset(void *s, int c, size_t n) {
+    unsigned char *p = s;
+    unsigned char val = (unsigned char)c;
+    while (n--) *p++ = val;
+    return s;
+}
+#define memset my_memset
+
 /* Syntax highlight types */
 #define HL_NORMAL 0
 #define HL_NONPRINT 1
@@ -219,9 +283,17 @@ int enableRawMode(int fd) {
     struct termios raw;
 
     if (E.rawmode) return 0; /* Already enabled. */
-    if (!isatty(STDIN_FILENO)) goto fatal;
+    
+    if (!isatty(STDIN_FILENO)) {
+        goto fatal;
+    }
+    
     atexit(editorAtExit);
-    if (tcgetattr(fd,&orig_termios) == -1) goto fatal;
+    
+    if (tcgetattr(fd,&orig_termios) == -1) {
+        goto fatal;
+    }
+
 
     raw = orig_termios;  /* modify the original mode */
     /* input modes: no break, no CR to NL, no parity check, no strip char,
@@ -239,7 +311,9 @@ int enableRawMode(int fd) {
     raw.c_cc[VTIME] = 1; /* 100 ms timeout (unit is tens of second). */
 
     /* put terminal in raw mode after flushing */
-    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) goto fatal;
+    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) {
+        goto fatal;
+    }
     E.rawmode = 1;
     return 0;
 
