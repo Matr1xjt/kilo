@@ -15,18 +15,14 @@ AXLIBC := ../../target/riscv64gc-unknown-none-elf/release/libaxlibc.a
 .PHONY: all clean
 all: $(OUTDIR)/kilo
 
-$(OUTDIR)/kilo: _start.o mini_allocator.o kilo.o | $(OUTDIR)
-	$(CC) $(LDFLAGS) -o $@ _start.o mini_allocator.o kilo.o $(AXLIBC) -lgcc
+$(OUTDIR)/kilo: _start.o kilo.o | $(OUTDIR)
+	$(CC) $(LDFLAGS) -o $@ _start.o kilo.o $(AXLIBC) -lgcc
 
 kilo.o: kilo.c
 	$(CC) $(CFLAGS) -c -o $@ kilo.c
 
 _start.o: _start.c
 	$(CC) $(CFLAGS) -c -o $@ _start.c
-
-mini_allocator.o: mini_allocator.c
-	$(CC) $(CFLAGS) -c -o $@ mini_allocator.c
-
 
 
 $(OUTDIR):
