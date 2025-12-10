@@ -10,5 +10,4 @@ kilo
 ../bin/kilo
 
 # Build artifacts
-_start.c
-mini_allocator.c
+# Note: _start.c is needed for compilation, should be tracked
