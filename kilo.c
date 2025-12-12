@@ -875,10 +875,10 @@ struct abuf {
 #define ABUF_INIT {NULL,0}
 
 void abAppend(struct abuf *ab, const char *s, int len) {
-    char *new = realloc(ab->b,ab->len+len);
+    char *new = realloc(ab->b, ab->len + len);
 
     if (new == NULL) return;
-    memcpy(new+ab->len,s,len);
+    memcpy(new+ab->len, s, len);
     ab->b = new;
     ab->len += len;
 }
@@ -1000,11 +1000,15 @@ void editorRefreshScreen(void) {
             cx++;
         }
     }
-    snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,cx);
-    abAppend(&ab,buf,strlen(buf));
-    abAppend(&ab,"\x1b[?25h",6); /* Show cursor. */
+    /* snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,cx); */
+    /* abAppend(&ab,buf,strlen(buf)); */
+    /* abAppend(&ab,"\x1b[?25h",6); */ /* Show cursor. */
     write(STDOUT_FILENO,ab.b,ab.len);
     abFree(&ab);
+
+    snprintf(buf,sizeof(buf),"\x1b[%d;%dH",E.cy+1,cx);
+    write(STDOUT_FILENO, buf, strlen(buf));
+    write(STDOUT_FILENO, "\x1b[?25h", 6);
 }
 
 /* Set an editor status message for the second line of the status, at the

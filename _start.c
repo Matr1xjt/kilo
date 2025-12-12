@@ -5,14 +5,18 @@
 extern int main(int, char **);
 extern void _exit(int) __attribute__((noreturn));
 
-void _start(void) {
-     /* Kernel populates a0=argc, a1=argv for new process (see Process::exec).
-         Read a0/a1 registers directly. */
-     unsigned long a0_val, a1_val;
-     __asm__ volatile ("mv %0, a0" : "=r" (a0_val));
-     __asm__ volatile ("mv %0, a1" : "=r" (a1_val));
-     int argc = (int)a0_val;
-     char **argv = (char **)a1_val;
-    int ret = main(argc, argv);
+static void sys_write_test(void) {
+    const char *msg = "DEBUG: _start reached\n";
+    unsigned long len = 22;
+    register unsigned long a0 __asm__("a0") = 1; // stdout
+    register unsigned long a1 __asm__("a1") = (unsigned long)msg;
+    register unsigned long a2 __asm__("a2") = len;
+    register unsigned long a7 __asm__("a7") = 64; // sys_write
+    __asm__ volatile ("ecall" : "+r"(a0) : "r"(a1), "r"(a2), "r"(a7) : "memory");
+}
+
+void _start(long argc, char **argv) {
+    sys_write_test();
+    int ret = main((int)argc, argv);
     _exit(ret);
 }

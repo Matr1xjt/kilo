@@ -5,7 +5,7 @@ AR = riscv64-unknown-elf-ar
 INCLUDE_AXLIBC = -I../../ulib/axlibc/include
 # Disable builtin memcpy/memset to avoid infinite recursion with our inline implementations
 CFLAGS = -march=rv64gc -mabi=lp64d -O2 -ffreestanding -fno-common -Wall -W -pedantic -std=c99 -fno-builtin-memcpy -fno-builtin-memset $(INCLUDE_AXLIBC)
-LDFLAGS = -march=rv64gc -mabi=lp64d -nostdlib -static -T ../user.ld
+LDFLAGS = -march=rv64gc -mabi=lp64d -nostdlib -static -T ../user.ld -nodefaultlibs
 
 BUILDDIR := .
 OUTDIR := ../bin
