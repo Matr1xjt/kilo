@@ -139,6 +139,8 @@ enum KEY_ACTION{
 };
 
 void editorSetStatusMessage(const char *fmt, ...);
+void editorInsertNewline(void);
+void editorRefreshScreen(void);
 
 /* =========================== Syntax highlights DB =========================
  *
@@ -264,7 +266,10 @@ int editorReadKey(int fd) {
     int nread;
     char c, seq[3];
     while ((nread = read(fd,&c,1)) == 0);
-    if (nread == -1) exit(1);
+    if (nread == -1) {
+        if (errno == EAGAIN || errno == EINTR) return -1;
+        exit(1);
+    }
 
     while(1) {
         switch(c) {
@@ -608,7 +613,8 @@ void editorInsertRow(int at, char *s, size_t len) {
     }
     E.row[at].size = len;
     E.row[at].chars = malloc(len+1);
-    memcpy(E.row[at].chars,s,len+1);
+    if (len) memmove(E.row[at].chars,s,len);
+    E.row[at].chars[len] = '\0';
     E.row[at].hl = NULL;
     E.row[at].hl_oc = 0;
     E.row[at].render = NULL;
@@ -751,7 +757,16 @@ void editorInsertNewline(void) {
         editorInsertRow(filerow,"",0);
     } else {
         /* We are in the middle of a line. Split it between two rows. */
-        editorInsertRow(filerow+1,row->chars+filecol,row->size-filecol);
+        /* Copy the tail to a temporary buffer to avoid overlapping issues
+         * when editorInsertRow manipulates E.row array. */
+        int tail_len = row->size - filecol;
+        char *tail = malloc(tail_len + 1);
+        if (tail) {
+            if (tail_len > 0) memcpy(tail, row->chars + filecol, tail_len);
+            tail[tail_len] = '\0';
+        }
+        editorInsertRow(filerow+1, tail ? tail : "", tail_len);
+        if (tail) free(tail);
         row = &E.row[filerow];
         row->chars[filecol] = '\0';
         row->size = filecol;
@@ -765,6 +780,14 @@ fixcursor:
     }
     E.cx = 0;
     E.coloff = 0;
+    /* Debug: show cursor/offset state after inserting newline so we can
+     * observe any unexpected shifts. This is temporary and can be removed
+     * when the issue is diagnosed. */
+    editorSetStatusMessage("DBG newline: cx=%d cy=%d coloff=%d rowoff=%d", E.cx, E.cy, E.coloff, E.rowoff);
+    /* Force a full screen refresh now to avoid display residue/timing issues
+     * when running over serial/pty-backed consoles. This is a temporary
+     * mitigation to verify if immediate redraw removes the leftover chars. */
+    editorRefreshScreen();
 }
 
 /* Delete the char at the current prompt position. */
@@ -920,8 +943,14 @@ void editorRefreshScreen(void) {
 
         r = &E.row[filerow];
 
+        /* Clear the entire line first to avoid residual characters from
+         * a previously longer line that could remain on the terminal when
+         * the new rendered row is shorter. */
+        abAppend(&ab,"\x1b[0K",4);
+
         int len = r->rsize - E.coloff;
         int current_color = -1;
+        int printed = 0;
         if (len > 0) {
             if (len > E.screencols) len = E.screencols;
             char *c = r->render+E.coloff;
@@ -953,10 +982,17 @@ void editorRefreshScreen(void) {
                     }
                     abAppend(&ab,c+j,1);
                 }
+                printed++;
             }
         }
+        /* Ensure we overwrite any previous longer content by padding with
+         * spaces up to the screen width. Some serial/pty terminals may not
+         * honor CSI Erase in Line, so explicit padding is more robust. */
+        if (printed < E.screencols) {
+            int pad = E.screencols - printed;
+            while (pad--) abAppend(&ab," ",1);
+        }
         abAppend(&ab,"\x1b[39m",5);
-        abAppend(&ab,"\x1b[0K",4);
         abAppend(&ab,"\r\n",2);
     }
 
@@ -1205,6 +1241,7 @@ void editorProcessKeypress(int fd) {
     static int quit_times = KILO_QUIT_TIMES;
 
     int c = editorReadKey(fd);
+    if (c == -1) return; /* interrupted read or no data; ignore and continue */
     switch(c) {
     case ENTER:         /* Enter */
         editorInsertNewline();
@@ -1221,6 +1258,12 @@ void editorProcessKeypress(int fd) {
             quit_times--;
             return;
         }
+        /* Restore terminal and clear screen (like shell's clear) before exiting */
+        disableRawMode(STDIN_FILENO);
+        /* ANSI clear screen and move cursor home */
+        write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
+        /* Show cursor */
+        write(STDOUT_FILENO, "\x1b[?25h", 6);
         exit(0);
         break;
     case CTRL_S:        /* Ctrl-s */
