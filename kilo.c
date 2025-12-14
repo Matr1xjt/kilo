@@ -1350,6 +1350,9 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Usage: kilo <filename>\n");
         exit(1);
     }
+    // 打开文件前，先清屏并隐藏光标
+    write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
+    write(STDOUT_FILENO, "\x1b[?25l", 6);
 
     initEditor();
     editorSelectSyntaxHighlight(argv[1]);
